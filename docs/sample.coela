@@ -1,0 +1,163 @@
+# The first line of any Coela source file
+# should be a module definition.
+module docs
+
+# The module "prelude" is automatically,
+# implicitly imported by default.
+import std.prelude
+import std.io as io
+import std.channel as channel
+import std.thread as thread
+
+# Structs with named fields
+# Primitive typed fields
+struct Vec2 with
+    x: Float
+    y: Float
+
+# Composite typed fields
+struct Line2 with
+    u: Vec2
+    v: Vec2
+
+# Generic structs
+struct Stack a with
+    data: [a]
+
+# Struct with pointers
+opaque struct Array a with
+    data: *a
+    len: Uint
+    cap: Uint
+
+# Tuple structs
+struct Color with (Byte, Byte, Byte)
+struct Point with (Float, Float, Float)
+struct Char with Byte
+
+# Unit structs
+struct Unit
+struct Exit
+
+# Union
+union Message with
+    # Constructor with two named fields
+    MoveTo with
+        x: Int
+        y: Int
+
+        # Compile-time refinement
+        requires all_of id [x >= 0, y >= 0]
+
+    # Constructor with one unnamed field
+    Write with String
+
+    # Constructor with three unnamed fields
+    SetColor with (Byte, Byte, Byte)
+    
+    # Constructor with no fields
+    Quit
+
+# Generic Unions
+union Maybe a with
+    Some with a
+    None
+
+union List a with
+    Cons with
+        data: a
+        next: Box (List a)
+
+    Nil
+
+union Tree a with
+    Branch with
+        data:  a
+        left:  Box (Tree a)
+        right: Box (Tree a)
+
+    Leaf with
+        data: a
+
+# Trait
+# Define a trait called "Show"
+trait Show a with
+    show: a -> String
+
+# Implement Show for Vec2
+impl Show Vec2 with
+    show = \v -> "({v.x}, {v.y})"
+
+# Implement show for "Maybe a"
+# when "a" already implements Show
+impl Show a => Show (Maybe a) with
+    show = \m -> match m with
+        None   -> "None"
+        Some s -> "Some with {s}"
+
+# Functions
+# Private nullary(ish) functions
+pvt let pvt_func1 = \> "This is a private function."
+let     pvt_func2 = \> "This is also a private function."
+
+pvt let do_thread_work = \>
+    let ch = channel.new ()
+
+    # for _ in _ loops
+    # Semantically the same as for_each
+    for i in 0..10 do
+        thread.spawn \> send ch i
+    for _ in 0..10 do
+        io.println "Thread {recv ch} is complete!"
+
+# Unary function that takes argument "i"
+pvt let create_odd_squares1 = \i ->
+    # Using data pipelining and sections
+    0..i |> filter (%2) |> map (**2)
+
+pvt let create_odd_squares2 = \i ->
+    # Using list comprehensions
+    [| x * x for x in 0..i if x % 2 |]
+
+# Public functions
+pub let pub_func = \> "This is public."
+pub let list_map = \f l -> match l with
+    [] -> []
+    x+:xs -> f x +: list_map f xs
+
+# Uses an array-like vector
+pub let vec_add = \u v ->
+    # Ensures u and v are the same
+    # length at compile time
+    requires u.length == v.length
+
+    match (u, v) with
+        ([], []) -> []
+        (x+:xs, y+:ys) -> (x + y) +: vec_add xs ys
+
+# The entry point of any Coela program
+pub let main = \>
+    io.println "Hello, world!"
+
+    let nums1 = [0, 1, 2, 3, 4]
+    let nums2 = to_list 0..5
+    # Ensure nums1 == nums2 at compile time
+    requires nums1 == nums2
+
+    # Passing a lambda to map rather than a section
+    let new_nums = map (\x -> x + 1) nums
+    io.println "New nums array is {new_nums}."
+
+    let tree1 = Tree.Branch 10 (Tree.Branch -3 (Tree.Leaf 9) (Tree.Leaf 4)) (Tree.Leaf 7)
+    let tree2 = Tree.Branch with
+        .data = 10
+        .left = Tree.Branch with
+            .data -3
+            .left = Tree.Leaf 9
+            .right = Tree.Leaf 4
+        .right = Tree.Leaf 7
+
+    let my_color = Color 0x00 0xFF 0xFF
+    match my_color with
+        Color r g b -> io.println "The color is {r}, {g}, {b}."
+        _           -> unreachable ()
